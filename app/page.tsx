@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect } from "react";
 import {
@@ -23,6 +23,24 @@ const tasks: TaskCard[] = [
     columnId: "complete",
     priority: "high",
     rateLimit: { used: 5, max: 100 }
+  },
+  {
+    id: "dummy-ai-trend-task",
+    title: "Research latest AI trend",
+    agent: "morpheus",
+    columnId: "executing",
+    priority: "medium",
+    rateLimit: { used: 42, max: 100 },
+    lastUpdate: "Scanning current AI releases and model launches.",
+    updatedAt: new Date().toISOString(),
+    updatedBy: "telegram-bridge",
+    provider: "openai",
+    model: "gpt-4.1",
+    notes: [
+      "Telegram request received and logged to board.",
+      "Collecting recent source candidates for summary.",
+      "Preparing trend brief for final response."
+    ]
   }
 ];
 
@@ -42,3 +60,4 @@ export default function Page() {
 
   return <HighDensityKanban columns={columns} initialCards={tasks} />;
 }
+
