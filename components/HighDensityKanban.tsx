@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 export type BoardColumn = {
   id: string;
@@ -62,12 +62,46 @@ function rateLevel(used: number, max: number): "ok" | "warn" | "danger" {
   return "ok";
 }
 
+function Typewriter({ text }: { text: string }) {
+  const [displayedText, setDisplayedText] = useState("");
+  useEffect(() => {
+    setDisplayedText("");
+    let i = 0;
+    const interval = setInterval(() => {
+      setDisplayedText(text.slice(0, i) + "█");
+      i++;
+      if (i > text.length) {
+        clearInterval(interval);
+        setDisplayedText(text);
+      }
+    }, 30);
+    return () => clearInterval(interval);
+  }, [text]);
+  return <span>{displayedText}</span>;
+}
+
 export function HighDensityKanban({ columns, initialCards }: Props) {
   const [cards, setCards] = useState<TaskCard[]>(initialCards);
   const [dragState, setDragState] = useState<DragState>(null);
   const [hoverColumn, setHoverColumn] = useState<string | null>(null);
   const [logPeekCardId, setLogPeekCardId] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const res = await fetch('/api/tasks');
+        if (res.ok) {
+          const data = await res.json();
+          setCards(data);
+        }
+      } catch (e) {}
+    };
+    
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const grouped = useMemo(() => {
     const map = new Map<string, TaskCard[]>();
@@ -82,7 +116,7 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
     return map;
   }, [cards, columns]);
 
-  function onDrop(targetColumnId: string) {
+  async function onDrop(targetColumnId: string) {
     if (!dragState) return;
     const { cardId, fromColumnId } = dragState;
     if (fromColumnId === targetColumnId) {
@@ -90,17 +124,29 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
       setHoverColumn(null);
       return;
     }
-    setCards((prev) =>
-      prev.map((card) =>
-        card.id === cardId ? { ...card, columnId: targetColumnId } : card
-      )
+    const updatedCards = cards.map((card) =>
+      card.id === cardId ? { ...card, columnId: targetColumnId } : card
     );
+    setCards(updatedCards);
     setDragState(null);
     setHoverColumn(null);
+
+    try {
+      await fetch('/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify(updatedCards),
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (e) {}
   }
 
   return (
     <main className="board-wrap">
+      {/* Ambient background orbs for glassmorphism effect */}
+      <div className="ambient-orb orb-1"></div>
+      <div className="ambient-orb orb-2"></div>
+      <div className="ambient-orb orb-3"></div>
+
       <header className="board-header">
         <h1>AI Agent Orchestrator</h1>
         <p>High-density view • drag cards to reprioritize execution lanes</p>
@@ -190,7 +236,7 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
                       </strong>
                       {logPeekCardId === card.id ? (
                         <div className="log-peek" role="status" aria-live="polite">
-                          {MOCK_LOGS[(card.title.length + card.agent.length) % MOCK_LOGS.length]}
+                          <Typewriter text={MOCK_LOGS[(card.title.length + card.agent.length) % MOCK_LOGS.length]} />
                         </div>
                       ) : null}
                       <div className="rate-row">
@@ -217,6 +263,54 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
       </section>
 
       <style jsx>{`
+        .ambient-orb {
+          position: fixed;
+          border-radius: 50%;
+          filter: blur(80px);
+          z-index: -1;
+          opacity: 0.5;
+        }
+
+        .orb-1 {
+          width: 300px;
+          height: 300px;
+          background: rgba(88, 166, 255, 0.3);
+          top: -50px;
+          right: 10%;
+          animation: float1 20s infinite alternate ease-in-out;
+        }
+
+        .orb-2 {
+          width: 400px;
+          height: 400px;
+          background: rgba(138, 43, 226, 0.2);
+          bottom: -100px;
+          left: 5%;
+          animation: float2 25s infinite alternate ease-in-out;
+        }
+
+        .orb-3 {
+          width: 250px;
+          height: 250px;
+          background: rgba(63, 185, 80, 0.2);
+          top: 40%;
+          left: 40%;
+          animation: float3 18s infinite alternate ease-in-out;
+        }
+
+        @keyframes float1 {
+          0% { transform: translate(0, 0); }
+          100% { transform: translate(-50px, 50px); }
+        }
+        @keyframes float2 {
+          0% { transform: translate(0, 0); }
+          100% { transform: translate(50px, -50px); }
+        }
+        @keyframes float3 {
+          0% { transform: translate(0, 0); }
+          100% { transform: translate(30px, 30px); }
+        }
+
         .board-wrap {
           display: grid;
           grid-template-rows: auto 1fr;
@@ -224,6 +318,8 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
           gap: 10px;
           padding: 10px;
           overflow: hidden;
+          position: relative;
+          z-index: 1;
         }
 
         .board-header h1 {
@@ -249,16 +345,19 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
 
         .column {
           min-height: 0;
-          background: color-mix(in srgb, var(--surface) 90%, transparent);
-          border: 1px solid var(--border);
+          background: rgba(22, 27, 34, 0.5);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 7px;
           display: grid;
           grid-template-rows: auto 1fr;
+          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
         }
 
         .column-hover {
           border-color: var(--drag);
-          box-shadow: 0 0 0 1px color-mix(in srgb, var(--drag) 70%, transparent);
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--drag) 70%, transparent), 0 8px 32px 0 rgba(0, 0, 0, 0.2);
         }
 
         .column-head {
@@ -268,7 +367,7 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
           padding: 7px 8px;
           font-size: 11px;
           font-weight: 600;
-          border-bottom: 1px solid var(--border);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .column-count {
@@ -285,21 +384,24 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
         }
 
         .card {
-          border: 1px solid var(--border);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 6px;
           padding: 6px;
-          background: #0f141c;
-          display: grid;
+          background: rgba(15, 20, 28, 0.7);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          display: flex;
+          flex-direction: column;
           gap: 5px;
           cursor: grab;
-          max-height: 120px;
-          overflow: hidden;
           position: relative;
+          box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.2);
+          z-index: 1;
         }
 
         .card:active {
           cursor: grabbing;
-          background: var(--surface-hover);
+          background: rgba(31, 38, 49, 0.8);
         }
 
         .card-top {
@@ -308,6 +410,7 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
           align-items: center;
           gap: 6px;
           font-size: 10px;
+          z-index: 2;
         }
 
         .card-meta-left,
@@ -323,22 +426,22 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
           padding: 1px 6px;
           text-transform: uppercase;
           letter-spacing: 0.03em;
-          border: 1px solid var(--border);
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .p-high {
           color: #ffb0aa;
-          border-color: #f85149;
+          border-color: rgba(248, 81, 73, 0.5);
         }
 
         .p-medium {
           color: #ffd58c;
-          border-color: #d29922;
+          border-color: rgba(210, 153, 34, 0.5);
         }
 
         .p-low {
           color: #7ee787;
-          border-color: #238636;
+          border-color: rgba(35, 134, 54, 0.5);
         }
 
         .agent {
@@ -370,8 +473,8 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
 
         .log-toggle,
         .quick-btn {
-          border: 1px solid var(--border);
-          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.05);
           color: var(--muted);
           border-radius: 999px;
           font-size: 9px;
@@ -402,7 +505,7 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
         .quick-btn:hover,
         .log-toggle:hover {
           color: var(--text);
-          border-color: color-mix(in srgb, var(--border) 55%, white);
+          border-color: rgba(255, 255, 255, 0.3);
         }
 
         .title {
@@ -411,6 +514,7 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          z-index: 2;
         }
 
         .rate-row {
@@ -418,6 +522,7 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
           grid-template-columns: auto 1fr;
           gap: 6px;
           align-items: center;
+          z-index: 2;
         }
 
         .rate-text {
@@ -430,16 +535,19 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
         .card-foot {
           font-size: 9px;
           color: var(--muted);
+          z-index: 2;
         }
 
         .log-peek {
-          border: 1px solid rgba(88, 166, 255, 0.18);
-          background: rgba(88, 166, 255, 0.08);
+          border: 1px solid rgba(88, 166, 255, 0.3);
+          background: rgba(88, 166, 255, 0.1);
           border-radius: 5px;
           padding: 4px 5px;
-          white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          font-family: "Courier New", Courier, monospace;
+          color: #a5d6ff;
+          box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
         }
 
         .card-foot {
@@ -458,7 +566,7 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
         .bar {
           height: 5px;
           border-radius: 99px;
-          background: #222b35;
+          background: rgba(255, 255, 255, 0.1);
           overflow: hidden;
         }
 
@@ -472,8 +580,7 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
         }
 
         .rate-danger {
-          border-color: color-mix(in srgb, var(--danger) 60%, var(--border));
-          box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 40%, transparent);
+          border-color: rgba(248, 81, 73, 0.5);
         }
 
         .rate-danger .fill {
@@ -482,10 +589,36 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
         }
 
         .time-warning {
-          border-color: rgba(255, 166, 87, 0.75);
-          box-shadow:
-            0 0 0 1px rgba(255, 166, 87, 0.24),
-            0 0 12px rgba(255, 166, 87, 0.12);
+          border-color: transparent !important;
+        }
+        
+        .time-warning::before {
+          content: "";
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: conic-gradient(from 0deg, transparent 0 320deg, #388bfd 360deg);
+          animation: spin 3s linear infinite;
+          z-index: -2;
+        }
+        
+        .time-warning::after {
+          content: "";
+          position: absolute;
+          inset: 1px;
+          background: rgba(15, 20, 28, 0.8);
+          border-radius: 5px;
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          z-index: -1;
+        }
+
+        @keyframes spin {
+          100% {
+            transform: rotate(360deg);
+          }
         }
 
         @keyframes pulse {

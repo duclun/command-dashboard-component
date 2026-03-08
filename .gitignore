@@ -23,3 +23,6 @@ yarn-error.log*
 # env
 .env*.local
 .env
+
+# data
+data/tasks.json
