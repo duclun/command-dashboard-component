@@ -25,4 +25,4 @@ yarn-error.log*
 .env
 
 # data
-data/tasks.json
+data/*.json

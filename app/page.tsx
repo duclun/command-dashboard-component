@@ -25,21 +25,16 @@ const tasks: TaskCard[] = [
     rateLimit: { used: 5, max: 100 }
   },
   {
-    id: "dummy-ai-trend-task",
-    title: "Research latest AI trend",
+    id: "research-ai-news-task",
+    title: "Research latest AI news",
     agent: "morpheus",
-    columnId: "executing",
+    columnId: "queued",
     priority: "medium",
-    rateLimit: { used: 42, max: 100 },
-    lastUpdate: "Scanning current AI releases and model launches.",
-    updatedAt: new Date().toISOString(),
+    rateLimit: { used: 0, max: 100 },
     updatedBy: "telegram-bridge",
-    provider: "openai",
-    model: "gpt-4.1",
     notes: [
-      "Telegram request received and logged to board.",
-      "Collecting recent source candidates for summary.",
-      "Preparing trend brief for final response."
+      "Task requested by Master Dlun via Telegram.",
+      "Response delivered to Telegram."
     ]
   }
 ];

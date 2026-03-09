@@ -315,7 +315,24 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
               onDrop={() => onDrop(column.id)}
             >
               <div className="column-head">
-                <span>{column.title}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span>{column.title}</span>
+                  {column.id === "complete" && list.length > 0 && (
+                    <button
+                      type="button"
+                      className="quick-btn"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await fetch("/api/tasks/clear", { method: "POST" });
+                          setCards((prev) => prev.filter((c) => c.columnId !== "complete"));
+                        } catch {}
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
                 <span className="column-count">
                   {list.length}
                   {typeof column.limit === "number" ? `/${column.limit}` : ""}
@@ -372,6 +389,26 @@ export function HighDensityKanban({ columns, initialCards }: Props) {
                           <span className="agent">{card.agent}</span>
                         </div>
                         <div className="quick-actions" aria-label={`Quick actions for ${card.title}`}>
+                          <button
+                            type="button"
+                            className="quick-btn"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const updatedCards = cards.map((c) =>
+                                c.id === card.id ? { ...c, columnId: "queued" } : c
+                              );
+                              setCards(updatedCards);
+                              try {
+                                await fetch("/api/tasks", {
+                                  method: "POST",
+                                  body: JSON.stringify(updatedCards),
+                                  headers: { "Content-Type": "application/json" }
+                                });
+                              } catch {}
+                            }}
+                          >
+                            Retry
+                          </button>
                           {["Kill", "Pause", "Steer"].map((action) => (
                             <button
                               key={action}
